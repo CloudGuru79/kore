@@ -86,13 +86,6 @@ func (a k8sCtrl) Delete(ctx context.Context, object *clustersv1.Kubernetes) (rec
 					return reconcile.Result{}, err
 				}
 			} else {
-				// Assumption: we only clean up everything if we own the provider
-				if object.Spec.Provider.Kind == "EKS" {
-					if err := a.EnsureResourceDeletion(context.Background(), object); err != nil {
-						return reconcile.Result{}, err
-					}
-				}
-
 				object.Status.Components.SetCondition(corev1.Component{
 					Name:    ComponentClusterDelete,
 					Message: "Waiting for cloud provider to be deleted",
@@ -120,7 +113,7 @@ func (a k8sCtrl) Delete(ctx context.Context, object *clustersv1.Kubernetes) (rec
 
 				if a.Config().EnableClusterDeletionBlock {
 					// @check if cloud provider is still being deleted we wait
-					return reconcile.Result{RequeueAfter: 1 * time.Minute}, nil
+					return reconcile.Result{RequeueAfter: 30 * time.Second}, nil
 				}
 			}
 			logger.Debug("attempting to delete the kubernetes credential")

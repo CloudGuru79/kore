@@ -18,7 +18,7 @@ package eks
 
 import (
 	"context"
-	"fmt"
+	"time"
 
 	corev1 "github.com/appvia/kore/pkg/apis/core/v1"
 	eksv1alpha1 "github.com/appvia/kore/pkg/apis/eks/v1alpha1"
@@ -43,8 +43,7 @@ func (t *eksCtrl) Delete(request reconcile.Request) (reconcile.Result, error) {
 	})
 	logger.Info("attempting to delete eks cluster")
 
-	// @step: first we need to check if we have access to the credentials
-
+	// @step: retrieve the object from the api
 	resource := &eksv1alpha1.EKS{}
 	if err := t.mgr.GetClient().Get(ctx, request.NamespacedName, resource); err != nil {
 		if kerrors.IsNotFound(err) {
@@ -65,29 +64,29 @@ func (t *eksCtrl) Delete(request reconcile.Request) (reconcile.Result, error) {
 
 	finalizer := kubernetes.NewFinalizer(t.mgr.GetClient(), finalizerName)
 
-	requeue, err := func() (bool, error) {
+	result, err := func() (reconcile.Result, error) {
 		creds, err := t.GetCredentials(ctx, resource, request.NamespacedName.Name)
 		if err != nil {
-			return false, err
+			return reconcile.Result{}, err
 		}
 
 		// @step: create a cloud client for us
 		client, err := aws.NewClient(creds, resource)
 		if err != nil {
-			return false, err
+			return reconcile.Result{}, err
 		}
 
 		// @step: check if the cluster exists and if so we wait or the operation or the exit
 		found, err := client.Exists()
 		if err != nil {
-			return false, fmt.Errorf("checking if cluster exists: %s", err)
+			return reconcile.Result{}, err
 		}
 
 		// @step: lets update the status of the resource to deleting
 		if resource.Status.Status != corev1.DeletingStatus {
 			resource.Status.Status = corev1.DeletingStatus
 
-			return true, nil
+			return reconcile.Result{Requeue: true}, nil
 		}
 
 		if found {
@@ -96,7 +95,7 @@ func (t *eksCtrl) Delete(request reconcile.Request) (reconcile.Result, error) {
 			if err != nil {
 				logger.WithError(err).Error("attempting to list nodegroups first")
 
-				return false, err
+				return reconcile.Result{}, err
 			}
 			for _, ng := range ngs {
 				// Get the Kore nodegroup object
@@ -113,38 +112,44 @@ func (t *eksCtrl) Delete(request reconcile.Request) (reconcile.Result, error) {
 					}
 					logger.WithError(err).Errorf("error getting nodegroup %s", ng)
 
-					return false, err
+					return reconcile.Result{}, err
 				}
 				// We need to delete the nodepool first so lets do that:
 				if err := t.mgr.GetClient().Delete(ctx, eksng.DeepCopy()); err != nil {
-					logger.Debugf("initiated deltion of resource %s, requeing cluster deletion until gone", ng)
-					return true, nil
+					logger.Debugf("initiated deletion of resource %s, requeing cluster deletion until gone", ng)
+
+					return reconcile.Result{Requeue: true}, nil
 				}
 			}
 			// We can now delete the cluster
-			_, err = client.Delete()
-			if err != nil {
-				return false, err
+			if _, err = client.Delete(); err != nil {
+				return reconcile.Result{}, err
 			}
-			// Reque until this is finished
-			return true, nil
+
+			return reconcile.Result{RequeueAfter: 1 * time.Minute}, nil
 		}
-		// no cluster - no reque
-		return false, nil
+
+		return reconcile.Result{}, nil
 	}()
 	if err != nil {
 		logger.WithError(err).Error("attempting to delete the cluster")
 
+		resource.Status.Status = corev1.FailureStatus
+		resource.Status.Conditions.SetCondition(corev1.Component{
+			Detail:  err.Error(),
+			Message: "Failed to delete the EKS cluster",
+			Status:  corev1.FailureStatus,
+		})
+	}
+	// @step: update the status of the resoruce
+	if err := t.mgr.GetClient().Status().Patch(ctx, resource, client.MergeFrom(original)); err != nil {
+		logger.WithError(err).Error("trying to update the resource status")
+
 		return reconcile.Result{}, err
 	}
-	if requeue {
-		if err := t.mgr.GetClient().Status().Patch(ctx, resource, client.MergeFrom(original)); err != nil {
-			logger.WithError(err).Error("trying to update the resource status")
 
-			return reconcile.Result{}, err
-		}
-
-		return reconcile.Result{Requeue: true}, nil
+	if err != nil {
+		return result, err
 	}
 
 	if err := finalizer.Remove(resource); err != nil {
@@ -152,8 +157,7 @@ func (t *eksCtrl) Delete(request reconcile.Request) (reconcile.Result, error) {
 
 		return reconcile.Result{}, err
 	}
+	logger.Debug("successfully deleted the cluster")
 
-	logger.Info("successfully deleted the cluster")
-
-	return reconcile.Result{}, nil
+	return result, nil
 }

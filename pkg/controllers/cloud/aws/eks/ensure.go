@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package kubernetes
+package eks
 
 import (
 	"context"
@@ -28,9 +28,14 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
+const (
+	// ComponentClusterDelete is the name of the cluster deletion component
+	ComponentClusterDelete = "Cluster Deletion"
+)
+
 // EnsureResourceDeletion is responsible for cleanup the resources in the cluster
 // @note: at present this is only done for EKS as GKE performs it's own cleanup
-func (a k8sCtrl) EnsureResourceDeletion(ctx context.Context, object *clustersv1.Kubernetes) error {
+func (t *eksCtrl) EnsureResourceDeletion(ctx context.Context, object *clustersv1.Kubernetes) error {
 	logger := log.WithFields(log.Fields{
 		"name":      object.Name,
 		"namespace": object.Namespace,
@@ -44,7 +49,7 @@ func (a k8sCtrl) EnsureResourceDeletion(ctx context.Context, object *clustersv1.
 
 	// First delete all namespaces to ensure this will work
 	// @step: retrieve the provider credentials secret
-	token, err := controllers.GetConfigSecret(ctx, a.mgr.GetClient(), object.Namespace, object.Name)
+	token, err := controllers.GetConfigSecret(ctx, t.mgr.GetClient(), object.Namespace, object.Name)
 	if err != nil {
 		if kerrors.IsNotFound(err) {
 			return nil
@@ -76,9 +81,7 @@ func (a k8sCtrl) EnsureResourceDeletion(ctx context.Context, object *clustersv1.
 		return err
 	}
 
-	if err = CleanupKoreCluster(ctx, client); err != nil {
-		logger.WithError(err).Error("trying to clean up cluster resources")
-
+	if err := kubernetes.ClearOutCluster(ctx, client); err != nil {
 		object.Status.Components.SetCondition(corev1.Component{
 			Name:    ComponentClusterDelete,
 			Message: "Unable to delete all cluster namespaces",
