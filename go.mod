@@ -8,6 +8,7 @@ require (
 	github.com/apparentlymart/go-cidr v1.0.1
 	github.com/armon/go-proxyproto v0.0.0-20200108142055-f0b8253b1507
 	github.com/aws/aws-sdk-go v1.29.31
+	github.com/banzaicloud/k8s-objectmatcher v1.3.2
 	github.com/blevesearch/bleve v0.8.1
 	github.com/blevesearch/blevex v0.0.0-20190916190636-152f0fe5c040 // indirect
 	github.com/blevesearch/go-porterstemmer v1.0.2 // indirect
@@ -86,11 +87,11 @@ require (
 	google.golang.org/api v0.20.0
 	google.golang.org/grpc v1.27.0
 	gopkg.in/yaml.v2 v2.2.8
-	k8s.io/api v0.17.0
-	k8s.io/apiextensions-apiserver v0.17.0
-	k8s.io/apimachinery v0.17.0
-	k8s.io/client-go v0.17.0
-	k8s.io/code-generator v0.17.3
+	k8s.io/api v0.17.4
+	k8s.io/apiextensions-apiserver v0.17.4
+	k8s.io/apimachinery v0.17.4
+	k8s.io/client-go v0.17.4
+	k8s.io/code-generator v0.17.4
 	k8s.io/kube-openapi v0.0.0-20191107075043-30be4d16710a
 	k8s.io/utils v0.0.0-20191218082557-f07c713de883 // indirect
 	sigs.k8s.io/application v0.8.2

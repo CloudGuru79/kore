@@ -522,7 +522,7 @@ class TeamDashboard extends React.Component {
 
         {publicRuntimeConfig.featureGates['services'] ? (
           <Card
-            title={<div><Text style={{ marginRight: '10px' }}>Services</Text><Badge style={{ backgroundColor: '#1890ff' }} count={services.items.filter(c => !c.deleted).length} /></div>}
+            title={<div><Text style={{ marginRight: '10px' }}>Services</Text><Badge style={{ backgroundColor: '#1890ff' }} count={services.items ? services.items.filter(c => !c.deleted).length : 0} /></div>}
             style={{ marginBottom: '20px' }}
             extra={
               <div>
@@ -535,7 +535,7 @@ class TeamDashboard extends React.Component {
             }
           >
             <List
-              dataSource={services.items}
+              dataSource={services.items || []}
               renderItem={service => {
                 return (
                   <Service
